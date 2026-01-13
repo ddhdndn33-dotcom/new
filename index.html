@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>모바일 신분증</title>
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    
+    <link rel="apple-touch-icon" href="favicon.png">
+
+    <style>
+        :root { --blue: #3182f6; --bg: #f2f4f6; --dark: #1c1c1e; }
+        body { 
+            font-family: -apple-system, sans-serif; 
+            background: var(--bg); 
+            margin: 0; padding: 0; 
+            user-select: none; 
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* 설정 페이지 */
+        #setupPage { background: white; min-height: 100vh; padding: 25px; box-sizing: border-box; }
+        .input-group { margin-bottom: 12px; }
+        .input-group label { display: block; font-size: 12px; color: #888; margin-bottom: 4px; }
+        .input-group input { width: 100%; padding: 14px; border: 1px solid #eee; border-radius: 12px; font-size: 16px; box-sizing: border-box; background: #fafafa; }
+        .btn-start { width: 100%; padding: 18px; background: var(--blue); color: white; border: none; border-radius: 12px; font-weight: bold; font-size: 17px; margin-top: 20px; }
+
+        /* 신분증 페이지 */
+        #idPage { display: none; background: white; height: 100vh; flex-direction: column; align-items: center; }
+        .id-header { width: 100%; padding: 20px 0; border-bottom: 1px solid #f0f0f0; text-align: center; font-weight: bold; position: relative; padding-top: 50px; /* 아이폰 노치 대응 */ }
+        .id-header .back { position: absolute; left: 18px; bottom: 20px; cursor: pointer; font-size: 20px; }
+
+        .card-box { width: 90%; max-width: 360px; background: white; border-radius: 28px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); margin-top: 30px; padding: 25px; box-sizing: border-box; text-align: center; }
+        .user-photo { width: 130px; height: 160px; background: #f8f8f8; margin: 0 auto 20px; border-radius: 10px; overflow: hidden; border: 1px solid #eee; }
+        .user-photo img { width: 100%; height: 100%; object-fit: cover; }
+        
+        .name-text { font-size: 26px; font-weight: 800; margin-bottom: 15px; }
+        .ssn-row { display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 15px; }
+        .ssn-text { font-size: 20px; font-weight: 600; letter-spacing: 0.5px; }
+        
+        .switch { width: 44px; height: 24px; background: #e5e5ea; border-radius: 12px; position: relative; cursor: pointer; }
+        .switch.on { background: #333; }
+        .switch::after { content: ''; position: absolute; width: 20px; height: 20px; background: white; border-radius: 50%; top: 2px; left: 2px; transition: 0.3s; }
+        .switch.on::after { left: 22px; }
+
+        .info-text { font-size: 15px; color: #444; line-height: 1.5; margin-bottom: 4px; }
+        .date-text { font-size: 15px; color: #444; margin-top: 15px; font-weight: 600; }
+        
+        /* QR 섹션 */
+        #qrSection { display: none; margin: 10px 0; }
+        .qr-frame { width: 160px; height: 160px; margin: 0 auto; padding: 10px; border: 1px solid #f0f0f0; border-radius: 15px; }
+        
+        /* 타이머 UI (QR 표시 시 숨김) */
+        .timer-ui { width: 100%; margin-top: 30px; }
+        .timer-label { font-size: 13px; color: #999; margin-bottom: 8px; }
+        .bar-bg { width: 100%; height: 5px; background: #f0f0f0; border-radius: 3px; overflow: hidden; }
+        .bar-fill { width: 100%; height: 100%; background: var(--blue); transform-origin: left; transition: transform 1s linear; }
+
+        .bottom-btn { position: fixed; bottom: 40px; width: 90%; max-width: 360px; background: var(--dark); color: white; padding: 18px; border-radius: 16px; text-align: center; font-weight: bold; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <div id="setupPage">
+        <h2 style="margin-top:0">신분증 정보 입력</h2>
+        <div class="input-group"><label>성명</label><input type="text" id="inName" value="홍길동"></div>
+        <div class="input-group"><label>주민번호 앞</label><input type="text" id="inSsn1" value="000101"></div>
+        <div class="input-group"><label>주민번호 뒤</label><input type="text" id="inSsn2" value="3012345"></div>
+        <div class="input-group"><label>주소</label><input type="text" id="inAddr" value="경기도 부천시 길주로 123"></div>
+        <div class="input-group"><label>발급일자</label><input type="text" id="inDate" value="2024.01.20"></div>
+        <div class="input-group"><label>발급기관</label><input type="text" id="inAuth" value="부천시장"></div>
+        <div class="input-group"><label>사진</label><input type="file" accept="image/*" onchange="readImg(this)"></div>
+        <button class="btn-start" onclick="saveAndStart()">웹사이트 만들기</button>
+    </div>
+
+    <div id="idPage">
+        <div class="id-header"><span class="back" onclick="resetData()">〈</span>모바일 신분증</div>
+        <div class="card-box">
+            <div class="user-photo" id="resPhoto"></div>
+            <div class="name-text" id="resName"></div>
+            
+            <div id="infoSide">
+                <div class="ssn-row">
+                    <div class="ssn-text" id="resSsn"></div>
+                    <div class="switch" id="ssnSw" onclick="toggleMask()"></div>
+                </div>
+                <div class="info-text" id="resAddr"></div>
+                <div class="date-text" id="resDate"></div>
+                <div class="info-text" style="font-weight:600" id="resAuth"></div>
+            </div>
+
+            <div id="qrSection">
+                <div class="qr-frame"><img id="qrImg" src="" style="width:100%"></div>
+            </div>
+
+            <div class="timer-ui" id="timerArea">
+                <div class="timer-label">남은시간 <span id="sec">30</span>초</div>
+                <div class="bar-bg"><div class="bar-fill" id="bar"></div></div>
+            </div>
+        </div>
+        <div class="bottom-btn" id="modeBtn" onclick="toggleQr()">QR정보 표시</div>
+    </div>
+
+    <script>
+        let db = { name:'', s1:'', s2:'', addr:'', date:'', auth:'', pic:'' };
+        let timer = 30, interval;
+
+        // 시작 시 저장 데이터 불러오기
+        window.onload = () => {
+            const saved = localStorage.getItem('myID_v2');
+            if(saved) {
+                db = JSON.parse(saved);
+                applyData();
+                showPage('idPage');
+                startTimer();
+            }
+        }
+
+        function readImg(input) {
+            const reader = new FileReader();
+            reader.onload = (e) => db.pic = e.target.result;
+            if(input.files[0]) reader.readAsDataURL(input.files[0]);
+        }
+
+        function saveAndStart() {
+            db.name = document.getElementById('inName').value;
+            db.s1 = document.getElementById('inSsn1').value;
+            db.s2 = document.getElementById('inSsn2').value;
+            db.addr = document.getElementById('inAddr').value;
+            db.date = document.getElementById('inDate').value;
+            db.auth = document.getElementById('inAuth').value;
+            
+            localStorage.setItem('myID_v2', JSON.stringify(db));
+            applyData();
+            showPage('idPage');
+            startTimer();
+        }
+
+        function applyData() {
+            document.getElementById('resName').innerText = db.name;
+            document.getElementById('resSsn').innerText = db.s1 + " - ●●●●●●●";
+            document.getElementById('resAddr').innerText = db.addr;
+            document.getElementById('resDate').innerText = db.date;
+            document.getElementById('resAuth').innerText = db.auth;
+            if(db.pic) document.getElementById('resPhoto').innerHTML = `<img src="${db.pic}">`;
+            updateQr();
+        }
+
+        function startTimer() {
+            if(interval) clearInterval(interval);
+            interval = setInterval(() => {
+                timer--;
+                if(timer < 0) {
+                    timer = 30;
+                    updateQr();
+                }
+                document.getElementById('sec').innerText = timer;
+                document.getElementById('bar').style.transform = `scaleX(${timer/30})`;
+            }, 1000);
+        }
+
+        function updateQr() {
+            document.getElementById('qrImg').src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${Math.random()}`;
+        }
+
+        function toggleMask() {
+            const sw = document.getElementById('ssnSw');
+            sw.classList.toggle('on');
+            document.getElementById('resSsn').innerText = sw.classList.contains('on') ? db.s1+" - "+db.s2 : db.s1+" - ●●●●●●●";
+        }
+
+        function toggleQr() {
+            const isQ = document.getElementById('qrSection').style.display === 'block';
+            document.getElementById('qrSection').style.display = isQ ? 'none' : 'block';
+            document.getElementById('infoSide').style.display = isQ ? 'block' : 'none';
+            document.getElementById('timerArea').style.display = isQ ? 'block' : 'none'; // QR 모드 시 타이머 숨김
+            document.getElementById('modeBtn').innerText = isQ ? "QR정보 표시" : "상세정보 표시";
+        }
+
+        function showPage(pageId) {
+            document.getElementById('setupPage').style.display = pageId === 'setupPage' ? 'block' : 'none';
+            document.getElementById('idPage').style.display = pageId === 'idPage' ? 'flex' : 'none';
+        }
+
+        function resetData() {
+            if(confirm("정보를 수정하시겠습니까?")) {
+                showPage('setupPage');
+                clearInterval(interval);
+            }
+        }
+    </script>
+</body>
+</html>
